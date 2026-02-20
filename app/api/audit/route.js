@@ -1,60 +1,47 @@
-import axios from "axios";
-import * as cheerio from "cheerio";
+import { runFullAudit } from "@/services/auditService";
 import { connectDB } from "@/lib/mongodb";
 import Audit from "@/models/Audit";
+import { getCachedAudit } from "@/lib/cache";
+import { rateLimit } from "@/lib/rateLimit";
+
+export const maxDuration = 60;
 
 export async function POST(req) {
-  const { url } = await req.json();
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
+  const { allowed } = rateLimit(ip);
+  if (!allowed) {
+    return Response.json(
+      { error: "Rate limit exceeded. Please wait a minute and try again." },
+      { status: 429 }
+    );
+  }
+
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const { url, forceRefresh = false } = body;
+  if (!url) return Response.json({ error: "URL is required" }, { status: 400 });
 
   try {
-    // PageSpeed Insights API — request all 4 categories explicitly
-    const pagespeed = await axios.get(
-      `https://www.googleapis.com/pagespeedonline/v5/runPagespeed`,
-      {
-        params: {
-          url,
-          key: process.env.GOOGLE_API_KEY,
-          strategy: "mobile",
-          category: ["performance", "accessibility", "seo", "best-practices"]
-        },
-        // axios serializes repeated params correctly with this setting
-        paramsSerializer: (params) => {
-          return Object.entries(params)
-            .flatMap(([k, v]) =>
-              Array.isArray(v) ? v.map((val) => `${k}=${encodeURIComponent(val)}`) : [`${k}=${encodeURIComponent(v)}`]
-            )
-            .join("&");
-        }
+    new URL(url);
+  } catch {
+    return Response.json({ error: "Invalid URL format" }, { status: 400 });
+  }
+
+  try {
+    if (!forceRefresh) {
+      const cached = await getCachedAudit(url);
+      if (cached) {
+        return Response.json({ ...cached.toObject(), cached: true }, { status: 200 });
       }
-    );
+    }
 
-    const lighthouse = pagespeed.data.lighthouseResult.categories;
+    const auditData = await runFullAudit(url);
 
-    // Scrape On-Page SEO
-    const html = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AuditBot/1.0)" },
-      timeout: 15000
-    });
-    const $ = cheerio.load(html.data);
-
-    const title = $("title").text();
-    const metaDescription = $('meta[name="description"]').attr("content") || "";
-    const h1Count = $("h1").length;
-    const imageWithoutAlt = $("img:not([alt])").length;
-
-    const auditData = {
-      url,
-      performance: Math.round(lighthouse.performance.score * 100),
-      accessibility: Math.round(lighthouse.accessibility.score * 100),
-      seo: Math.round(lighthouse.seo.score * 100),
-      bestPractices: Math.round(lighthouse["best-practices"].score * 100),
-      title,
-      metaDescription,
-      h1Count,
-      imageWithoutAlt
-    };
-
-    // Save to MongoDB if configured — non-blocking, won't break the audit
     try {
       await connectDB();
       await Audit.create(auditData);
@@ -62,11 +49,11 @@ export async function POST(req) {
       console.warn("MongoDB save skipped:", dbErr.message);
     }
 
-    return new Response(JSON.stringify(auditData), { status: 200 });
+    return Response.json(auditData, { status: 200 });
   } catch (err) {
     console.error("Audit error:", err.message);
-    return new Response(
-      JSON.stringify({ error: "Audit failed", details: err.message }),
+    return Response.json(
+      { error: "Audit failed", details: err.message },
       { status: 500 }
     );
   }
