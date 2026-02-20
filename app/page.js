@@ -6,9 +6,11 @@ import CrawlTab from "@/components/tabs/CrawlTab";
 import KeywordsTab from "@/components/tabs/KeywordsTab";
 import CompetitorsTab from "@/components/tabs/CompetitorsTab";
 import HistoryTab from "@/components/tabs/HistoryTab";
+import RecommendationsTab from "@/components/tabs/RecommendationsTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "◉" },
+  { id: "recommendations", label: "Recommendations", icon: "💡" },
   { id: "technical", label: "Technical", icon: "⚙" },
   { id: "crawl", label: "Crawl", icon: "🕷" },
   { id: "keywords", label: "Keywords", icon: "📈" },
@@ -151,6 +153,9 @@ export default function Home() {
             {/* Tab content */}
             {activeTab === "overview" && (
               <OverviewTab report={report} reportRef={reportRef} />
+            )}
+            {activeTab === "recommendations" && (
+              <RecommendationsTab report={report} />
             )}
             {activeTab === "technical" && <TechnicalTab report={report} />}
             {activeTab === "crawl" && <CrawlTab url={report.url} />}
