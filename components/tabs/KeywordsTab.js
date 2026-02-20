@@ -77,7 +77,13 @@ export default function KeywordsTab({ domain }) {
 
       {/* Keyword input */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-        <p className="text-white/60 text-sm font-semibold">Track Keyword Rankings for <span className="text-white">{domain}</span></p>
+        <p className="text-white/60 text-sm font-semibold">
+          Track Keyword Rankings for{" "}
+          <span className="text-indigo-300 font-mono">{domain || "unknown domain"}</span>
+        </p>
+        {!domain && (
+          <p className="text-red-400 text-xs">Domain could not be detected. Re-run the audit to fix this.</p>
+        )}
         <textarea
           value={keywords}
           onChange={(e) => setKeywords(e.target.value)}
@@ -89,7 +95,7 @@ export default function KeywordsTab({ domain }) {
           <p className="text-white/30 text-xs">One keyword per line or comma-separated · max 20</p>
           <button
             onClick={fetchRankings}
-            disabled={loading || !keywords.trim()}
+            disabled={loading || !keywords.trim() || !domain}
             className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-white/8 disabled:text-white/25 rounded-lg text-sm font-semibold transition-all"
           >
             {loading ? "Checking…" : "Check Rankings"}

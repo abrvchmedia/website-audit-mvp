@@ -24,6 +24,13 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const reportRef = useRef(null);
 
+  // Always derive domain from url — handles cached results from before domain was in schema
+  const reportDomain =
+    report?.domain ||
+    (report?.url
+      ? (() => { try { return new URL(report.url).hostname; } catch { return ""; } })()
+      : "");
+
   const runAudit = async (e) => {
     e.preventDefault();
     if (!url.trim()) return;
@@ -147,9 +154,9 @@ export default function Home() {
             )}
             {activeTab === "technical" && <TechnicalTab report={report} />}
             {activeTab === "crawl" && <CrawlTab url={report.url} />}
-            {activeTab === "keywords" && <KeywordsTab domain={report.domain} />}
+            {activeTab === "keywords" && <KeywordsTab domain={reportDomain} />}
             {activeTab === "competitors" && <CompetitorsTab mainReport={report} />}
-            {activeTab === "history" && <HistoryTab domain={report.domain} />}
+            {activeTab === "history" && <HistoryTab domain={reportDomain} />}
           </div>
         )}
 
