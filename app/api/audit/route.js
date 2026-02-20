@@ -7,8 +7,6 @@ export async function POST(req) {
   const { url } = await req.json();
 
   try {
-    await connectDB();
-
     // PageSpeed Insights API
     const pagespeed = await axios.get(
       `https://www.googleapis.com/pagespeedonline/v5/runPagespeed`,
@@ -24,7 +22,10 @@ export async function POST(req) {
     const lighthouse = pagespeed.data.lighthouseResult.categories;
 
     // Scrape On-Page SEO
-    const html = await axios.get(url);
+    const html = await axios.get(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AuditBot/1.0)" },
+      timeout: 15000
+    });
     const $ = cheerio.load(html.data);
 
     const title = $("title").text();
@@ -44,11 +45,20 @@ export async function POST(req) {
       imageWithoutAlt
     };
 
-    await Audit.create(auditData);
+    // Save to MongoDB if configured — non-blocking, won't break the audit
+    try {
+      await connectDB();
+      await Audit.create(auditData);
+    } catch (dbErr) {
+      console.warn("MongoDB save skipped:", dbErr.message);
+    }
 
     return new Response(JSON.stringify(auditData), { status: 200 });
   } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: "Audit failed", details: err.message }), { status: 500 });
+    console.error("Audit error:", err.message);
+    return new Response(
+      JSON.stringify({ error: "Audit failed", details: err.message }),
+      { status: 500 }
+    );
   }
 }
