@@ -18,10 +18,15 @@ const AuditSchema = new mongoose.Schema({
   domainAge: String,
   domainAgeScore: Number,
   domainCreatedDate: String,
-  // Backlinks (placeholder for paid API)
-  backlinkScore: Number,
-  backlinkCount: Number,
-  indexedPages: Number,
+  // Technical
+  hasSitemap: Boolean,
+  sitemapUrl: String,
+  hasRobots: Boolean,
+  robotsDisallowAll: Boolean,
+  robotsPreview: String,
+  ttfb: Number,
+  redirectCount: Number,
+  redirectChain: mongoose.Schema.Types.Mixed,
   // Content
   title: String,
   metaDescription: String,
@@ -33,12 +38,22 @@ const AuditSchema = new mongoose.Schema({
   ogTagsDetected: Boolean,
   canonicalDetected: Boolean,
   contentScore: Number,
-  // Authority
+  // Backlinks (placeholder)
+  backlinkScore: Number,
+  backlinkCount: Number,
+  indexedPages: Number,
+  // New authority components
+  technicalHealth: Number,
+  searchVisibility: Number,
+  brandSignals: Number,
+  backlinkAuthority: Number,
   authorityScore: Number,
+  // Alerts
+  alert: String,
   createdAt: { type: Date, default: Date.now },
 });
 
-// TTL index — auto-delete after 90 days
+AuditSchema.index({ domain: 1, createdAt: -1 });
 AuditSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
 export default mongoose.models.Audit || mongoose.model("Audit", AuditSchema);

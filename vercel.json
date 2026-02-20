@@ -4,8 +4,16 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "functions": {
-    "app/api/audit/route.js": {
-      "maxDuration": 60
+    "app/api/audit/route.js": { "maxDuration": 60 },
+    "app/api/crawl/route.js": { "maxDuration": 60 },
+    "app/api/competitor/route.js": { "maxDuration": 60 },
+    "app/api/keywords/route.js": { "maxDuration": 30 },
+    "app/api/cron/daily-audit/route.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/daily-audit",
+      "schedule": "0 6 * * *"
     }
-  }
+  ]
 }

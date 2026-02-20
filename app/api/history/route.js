@@ -13,7 +13,7 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .limit(limit)
       .select(
-        "url domain authorityScore seo performance accessibility bestPractices securityScore contentScore domainAgeScore createdAt"
+        "url domain authorityScore seo performance accessibility bestPractices securityScore contentScore technicalHealth searchVisibility brandSignals createdAt alert"
       );
 
     return Response.json(audits, { status: 200 });

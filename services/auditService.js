@@ -2,18 +2,25 @@ import { fetchPageSpeed } from "@/lib/api/pagespeed";
 import { fetchSecurityData } from "@/lib/api/security";
 import { fetchWhoisData } from "@/lib/api/whois";
 import { fetchContentData } from "@/lib/api/content";
-import { calculateAuthorityScore } from "@/utils/scoring";
+import { runTechnicalAudit } from "@/services/seo/technicalAudit";
+import {
+  calculateAuthorityScore,
+  getTechnicalHealth,
+  getSearchVisibility,
+  getBrandSignals,
+} from "@/utils/scoring";
 
 export async function runFullAudit(url) {
   const { hostname: domain } = new URL(url);
 
-  // Run all external calls in parallel
-  const [psResult, secResult, whoisResult, contentResult] =
+  // All parallel — total time = slowest call
+  const [psResult, secResult, whoisResult, contentResult, techResult] =
     await Promise.allSettled([
       fetchPageSpeed(url),
       fetchSecurityData(url),
       fetchWhoisData(domain),
       fetchContentData(url),
+      runTechnicalAudit(url),
     ]);
 
   const ps =
@@ -47,33 +54,67 @@ export async function runFullAudit(url) {
           headingDepth: 0,
         };
 
-  const authorityScore = calculateAuthorityScore({
-    seo: ps.seo,
+  const tech =
+    techResult.status === "fulfilled"
+      ? techResult.value
+      : { sitemap: { found: false }, robots: { found: false }, ttfb: null, redirects: { count: 0, chain: [] } };
+
+  // ── Authority Score Components ──────────────────────────────────────────────
+  const technicalHealth = getTechnicalHealth({
     performance: ps.performance,
-    domainAgeScore: whois.domainAgeScore,
+    accessibility: ps.accessibility,
+    bestPractices: ps.bestPractices,
     securityScore: sec.score,
-    backlinkScore: 0, // Requires paid API (Ahrefs/Moz)
-    contentScore: content.contentScore,
+    hasSitemap: tech.sitemap.found,
+    hasRobots: tech.robots.found,
+    ttfb: tech.ttfb,
+    redirectCount: tech.redirects.count,
+  });
+
+  const searchVisibility = getSearchVisibility({ seo: ps.seo });
+
+  const brandSignals = getBrandSignals({
+    domainAgeScore: whois.domainAgeScore,
+    schemaDetected: content.schemaDetected,
+    ogTagsDetected: content.ogTagsDetected,
+  });
+
+  const authorityScore = calculateAuthorityScore({
+    technicalHealth,
+    searchVisibility,
+    contentDepth: content.contentScore,
+    backlinkAuthority: 0, // Requires Ahrefs / Moz API key
+    brandSignals,
   });
 
   return {
     url,
     domain,
+    // PageSpeed
     performance: ps.performance,
     accessibility: ps.accessibility,
     seo: ps.seo,
     bestPractices: ps.bestPractices,
+    // Security
     securityScore: sec.score,
     securityGrade: sec.grade,
     securityHeaders: sec.headers,
     securityHeadersPresent: sec.presentCount,
     securityHeadersTotal: sec.totalChecks,
+    // Domain
     domainAge: whois.ageYears,
     domainAgeScore: whois.domainAgeScore,
     domainCreatedDate: whois.createdDate,
-    backlinkScore: 0,
-    backlinkCount: null,
-    indexedPages: null,
+    // Technical
+    hasSitemap: tech.sitemap.found,
+    sitemapUrl: tech.sitemap.url || null,
+    hasRobots: tech.robots.found,
+    robotsDisallowAll: tech.robots.disallowAll || false,
+    robotsPreview: tech.robots.preview || null,
+    ttfb: tech.ttfb,
+    redirectCount: tech.redirects.count,
+    redirectChain: tech.redirects.chain,
+    // Content
     title: content.title,
     metaDescription: content.metaDescription,
     h1Count: content.h1Count,
@@ -84,6 +125,11 @@ export async function runFullAudit(url) {
     ogTagsDetected: content.ogTagsDetected,
     canonicalDetected: content.canonicalDetected,
     contentScore: content.contentScore,
+    // Authority components
+    technicalHealth,
+    searchVisibility,
+    brandSignals,
+    backlinkAuthority: 0,
     authorityScore,
   };
 }

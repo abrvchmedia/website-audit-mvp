@@ -1,3 +1,64 @@
+// ─── Authority Score (new formula) ───────────────────────────────────────────
+
+export function calculateAuthorityScore({
+  technicalHealth = 0,
+  searchVisibility = 0,
+  contentDepth = 0,
+  backlinkAuthority = 0,
+  brandSignals = 0,
+}) {
+  return Math.round(
+    technicalHealth * 0.25 +
+      searchVisibility * 0.25 +
+      contentDepth * 0.2 +
+      backlinkAuthority * 0.2 +
+      brandSignals * 0.1
+  );
+}
+
+// ─── Component score builders ─────────────────────────────────────────────────
+
+export function getTechnicalHealth({
+  performance = 0,
+  accessibility = 0,
+  bestPractices = 0,
+  securityScore = 0,
+  hasSitemap = false,
+  hasRobots = false,
+  ttfb = null,
+  redirectCount = 0,
+}) {
+  let score = (performance + accessibility + bestPractices + securityScore) / 4;
+  if (hasSitemap) score = Math.min(100, score + 4);
+  if (hasRobots) score = Math.min(100, score + 2);
+  if (ttfb !== null) {
+    if (ttfb < 200) score = Math.min(100, score + 4);
+    else if (ttfb > 800) score = Math.max(0, score - 8);
+  }
+  if (redirectCount > 1) score = Math.max(0, score - redirectCount * 3);
+  return Math.round(score);
+}
+
+export function getSearchVisibility({ seo = 0, avgKeywordRank = null }) {
+  if (avgKeywordRank === null) return seo;
+  // Map avg rank to 0–100: rank 1 = 100, rank 20 = 0
+  const rankScore = Math.max(0, Math.round(100 - (avgKeywordRank - 1) * 5.3));
+  return Math.round(seo * 0.6 + rankScore * 0.4);
+}
+
+export function getBrandSignals({
+  domainAgeScore = 40,
+  schemaDetected = false,
+  ogTagsDetected = false,
+}) {
+  let score = domainAgeScore * 0.5;
+  if (schemaDetected) score += 30;
+  if (ogTagsDetected) score += 20;
+  return Math.min(100, Math.round(score));
+}
+
+// ─── Individual score helpers (kept from v1) ─────────────────────────────────
+
 export function getDomainAgeScore(createdDate) {
   if (!createdDate) return 40;
   const years =
@@ -34,37 +95,25 @@ export function getContentScore({
   if (wordCount > 1000) score += 25;
   else if (wordCount > 500) score += 15;
   else if (wordCount > 200) score += 8;
-
   if (h1Count === 1) score += 20;
   else if (h1Count > 1) score += 10;
-
   if (headingDepth >= 3) score += 15;
   else if (headingDepth >= 2) score += 8;
-
   if (schemaDetected) score += 20;
   if (ogTagsDetected) score += 10;
   if (canonicalDetected) score += 10;
-
   return Math.min(score, 100);
 }
 
-export function calculateAuthorityScore({
-  seo = 0,
-  performance = 0,
-  domainAgeScore = 0,
-  securityScore = 0,
-  backlinkScore = 0,
-  contentScore = 0,
-}) {
-  return Math.round(
-    seo * 0.25 +
-      performance * 0.15 +
-      domainAgeScore * 0.1 +
-      securityScore * 0.1 +
-      backlinkScore * 0.2 +
-      contentScore * 0.2
-  );
+export function getCrawlHealthScore(issues = []) {
+  const penalties = issues.reduce((sum, i) => {
+    const p = i.severity === "critical" ? 20 : i.severity === "warning" ? 8 : 3;
+    return sum + p * Math.min(i.count, 5);
+  }, 0);
+  return Math.max(0, 100 - penalties);
 }
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
 
 export function scoreTheme(score) {
   if (score >= 80)
