@@ -7,14 +7,23 @@ export async function POST(req) {
   const { url } = await req.json();
 
   try {
-    // PageSpeed Insights API
+    // PageSpeed Insights API — request all 4 categories explicitly
     const pagespeed = await axios.get(
       `https://www.googleapis.com/pagespeedonline/v5/runPagespeed`,
       {
         params: {
           url,
           key: process.env.GOOGLE_API_KEY,
-          strategy: "mobile"
+          strategy: "mobile",
+          category: ["performance", "accessibility", "seo", "best-practices"]
+        },
+        // axios serializes repeated params correctly with this setting
+        paramsSerializer: (params) => {
+          return Object.entries(params)
+            .flatMap(([k, v]) =>
+              Array.isArray(v) ? v.map((val) => `${k}=${encodeURIComponent(val)}`) : [`${k}=${encodeURIComponent(v)}`]
+            )
+            .join("&");
         }
       }
     );
